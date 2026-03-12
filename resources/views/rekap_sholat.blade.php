@@ -104,14 +104,18 @@
         .empty i { font-size: 2.5rem; opacity: 0.4; margin-bottom: 12px; display: block; }
         .error { margin-bottom: 20px; padding: 14px 16px; font-size: 0.9rem; border-radius: 12px; background: var(--red-bg); color: #991b1b; display: flex; align-items: center; gap: 10px; }
 
-        .content-wrap { position: relative; min-height: 200px; }
-        .page-loader { position: absolute; inset: 0; background: var(--bg-main); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10; transition: opacity 0.3s ease, visibility 0.3s ease; border-radius: var(--card-radius); }
+        .content-wrap { position: relative; }
+        .list-wrap { position: relative; min-height: 160px; }
+        .page-loader { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg-main); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 5; transition: opacity 0.2s ease; border-radius: var(--card-radius); }
         .page-loader.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
         .page-loader .spinner { width: 48px; height: 48px; border: 4px solid rgba(109, 40, 217, 0.2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
         .page-loader .text { margin-top: 16px; font-size: 0.9rem; color: var(--text-muted); }
         @keyframes spin { to { transform: rotate(360deg); } }
 
         .input-month { padding: 12px 18px; border-radius: 12px; border: 1px solid #e2e8f0; font-size: 0.9rem; font-weight: 600; font-family: inherit; background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light) 100%); color: #fff; cursor: pointer; box-shadow: 0 4px 14px rgba(109, 40, 217, 0.35); }
+        .btn-load-more { width: 100%; padding: 14px; border: 2px dashed #e2e8f0; border-radius: 12px; background: #fafafa; color: var(--accent); font-size: 0.9rem; font-weight: 600; cursor: pointer; }
+        .btn-load-more:hover { background: rgba(109, 40, 217, 0.06); border-color: var(--accent); }
+        .load-more-wrap { margin-top: 8px; }
         .input-month::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; opacity: 0.9; }
 
         @media (min-width: 960px) {
@@ -132,10 +136,6 @@
     </div>
 
     <div class="content content-wrap">
-        <div class="page-loader {{ $bulan ? '' : 'hidden' }}" id="pageLoader">
-            <div class="spinner"></div>
-            <span class="text">Memuat data...</span>
-        </div>
 
         <form method="GET" action="{{ route('presensi.rekap-sholat') }}" id="filterForm">
             <div class="filter-card">
@@ -160,7 +160,13 @@
         </div>
 
         <div class="section-title">Rekap Siswa</div>
-        <div class="list" id="rekapList"></div>
+        <div class="list-wrap">
+            <div class="page-loader {{ $bulan ? '' : 'hidden' }}" id="pageLoader">
+                <div class="spinner"></div>
+                <span class="text">Memuat data...</span>
+            </div>
+            <div class="list" id="rekapList"></div>
+        </div>
     </div>
 </div>
 
@@ -208,24 +214,48 @@
         var loader = document.getElementById('pageLoader');
         if (loader) loader.classList.add('hidden');
     }
-    function loadData(bulan) {
-        showLoader();
-        fetch(dataUrl + '?bulan=' + encodeURIComponent(bulan))
+    function loadData(bulan, page, append, search) {
+        page = page || 1;
+        append = !!append;
+        search = (typeof search !== 'undefined' ? search : (document.getElementById('searchInput') || {}).value || '').trim();
+        if (!append) showLoader();
+        var url = dataUrl + '?bulan=' + encodeURIComponent(bulan) + '&page=' + page + '&per_page=50';
+        if (search) url += '&search=' + encodeURIComponent(search);
+        fetch(url)
             .then(function (r) { return r.text(); })
             .then(function (html) {
                 var list = document.getElementById('rekapList');
-                if (list) list.innerHTML = html;
+                if (!list) return;
+                if (append) {
+                    var tmp = document.createElement('div');
+                    tmp.innerHTML = html;
+                    var cards = tmp.querySelectorAll('.card-rekap-student');
+                    var loadMore = tmp.querySelector('.load-more-wrap');
+                    cards.forEach(function (c) { list.appendChild(c.cloneNode(true)); });
+                    var oldLm = list.querySelector('.load-more-wrap');
+                    if (oldLm) oldLm.remove();
+                    if (loadMore) list.appendChild(loadMore.cloneNode(true));
+                } else {
+                    list.innerHTML = html;
+                }
                 currentBulan = bulan;
-                document.getElementById('bulanDisplay').textContent = bulan;
-                document.getElementById('bulanPicker').value = bulan;
+                if (!append) {
+                    document.getElementById('bulanDisplay').textContent = bulan;
+                    document.getElementById('bulanPicker').value = bulan;
+                }
                 history.replaceState(null, '', '?bulan=' + encodeURIComponent(bulan));
                 updateUnitOptions();
             })
             .catch(function () {
                 var list = document.getElementById('rekapList');
-                if (list) list.innerHTML = '<div class="error"><i class="fas fa-circle-exclamation"></i>Gagal memuat data. Silakan refresh halaman.</div>';
+                if (append) {
+                    var btn = list && list.querySelector('.btn-load-more');
+                    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-chevron-down"></i> Muat lebih banyak'; }
+                } else if (list) {
+                    list.innerHTML = '<div class="error"><i class="fas fa-circle-exclamation"></i>Gagal memuat data. Silakan refresh halaman.</div>';
+                }
             })
-            .finally(hideLoader);
+            .finally(function () { if (!append) hideLoader(); });
     }
     function updateUnitOptions() {
         var units = new Set();
@@ -248,14 +278,11 @@
         sel.selectedIndex = 0;
     }
     function doFilter() {
-        var q = (document.getElementById('searchInput') || {}).value.trim().toLowerCase();
         var unit = (document.getElementById('unitSelect') || {}).value || '';
         var cards = document.querySelectorAll('.card-rekap-student');
         for (var i = 0; i < cards.length; i++) {
             var card = cards[i];
-            var matchSearch = q === '' || (card.dataset.search || '').indexOf(q) >= 0;
-            var matchUnit = unit === '' || (card.dataset.unit || '') === unit;
-            card.style.display = (matchSearch && matchUnit) ? '' : 'none';
+            card.style.display = (unit === '' || (card.dataset.unit || '') === unit) ? '' : 'none';
         }
     }
 
@@ -289,13 +316,32 @@
 
         var searchInput = document.getElementById('searchInput');
         var unitSelect = document.getElementById('unitSelect');
-        var searchTimeout;
-        function applyFilter() {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(doFilter, 120);
+        if (searchInput) {
+            var searchTimeout;
+            searchInput.addEventListener('input', function () {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(function () {
+                    if (currentBulan) loadData(currentBulan, 1, false);
+                }, 300);
+            });
         }
-        if (searchInput) searchInput.addEventListener('input', applyFilter);
         if (unitSelect) unitSelect.addEventListener('change', doFilter);
+
+        var listWrap = document.querySelector('.list-wrap');
+        if (listWrap) {
+            listWrap.addEventListener('click', function (e) {
+                var btn = e.target.closest('.btn-load-more');
+                if (btn && !btn.disabled) {
+                    var wrap = btn.closest('.load-more-wrap');
+                    if (wrap) {
+                        var nextPage = parseInt(wrap.dataset.page || '1', 10) + 1;
+                        btn.disabled = true;
+                        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memuat...';
+                        loadData(currentBulan, nextPage, true);
+                    }
+                }
+            });
+        }
 
         var toggleBtn = document.getElementById('drawerToggle');
         var backdrop = document.getElementById('drawerBackdrop');

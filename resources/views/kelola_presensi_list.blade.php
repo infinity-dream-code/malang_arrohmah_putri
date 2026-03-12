@@ -17,6 +17,7 @@
         }
     @endphp
     <div class="card card-student" data-search="{{ $searchText }}">
+        <input type="checkbox" class="card-checkbox" aria-label="Pilih siswa">
         <div class="card-header">
             <div>
                 <div class="card-title">{{ $title }}</div>
@@ -84,3 +85,10 @@
 @empty
     <div class="empty"><i class="fas fa-clipboard-list"></i>Tidak ada data presensi untuk tanggal ini.</div>
 @endforelse
+@if(!empty($entries) && !empty($hasMore))
+    <div class="load-more-wrap" data-page="{{ $page }}" data-total="{{ $total }}">
+        <button type="button" class="btn-load-more" id="btnLoadMore">
+            <i class="fas fa-chevron-down"></i> Muat lebih banyak
+        </button>
+    </div>
+@endif

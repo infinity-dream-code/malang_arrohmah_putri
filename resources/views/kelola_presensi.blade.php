@@ -110,6 +110,18 @@
         .modal-close { margin-top: 16px; width: 100%; padding: 10px; border: none; border-radius: 10px; background: var(--gray-bg); color: var(--text-muted); font-size: 0.9rem; cursor: pointer; }
         .modal-close:hover { background: #e2e8f0; }
 
+        .card { position: relative; }
+        .card-checkbox { position: absolute; top: 16px; left: 16px; width: 22px; height: 22px; accent-color: var(--accent); cursor: pointer; z-index: 2; }
+        .card-header { padding-left: 44px; }
+        .btn-load-more { width: 100%; padding: 14px; border: 2px dashed #e2e8f0; border-radius: 12px; background: #fafafa; color: var(--accent); font-size: 0.9rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .btn-load-more:hover { background: rgba(109, 40, 217, 0.06); border-color: var(--accent); }
+        .btn-load-more:disabled { opacity: 0.6; cursor: wait; }
+        .load-more-wrap { margin-top: 8px; }
+        .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 12px; font-size: 0.9rem; font-weight: 600; z-index: 200; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); animation: toastIn 0.3s ease; }
+        .toast.success { background: var(--green-bg); color: #065f46; }
+        .toast.error { background: var(--red-bg); color: #991b1b; }
+        @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
         @media (min-width: 960px) {
             body { justify-content: flex-start; }
             .app { max-width: 1024px; margin-left: 280px; }
@@ -117,17 +129,21 @@
             .drawer { position: fixed; transform: translateX(0); }
             .drawer-backdrop:not(.modal-open) { display: none; }
         }
-        .content-wrap { position: relative; min-height: 200px; }
+        .content-wrap { position: relative; }
+        .list-wrap { position: relative; min-height: 160px; }
         .page-loader {
             position: absolute;
-            inset: 0;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             background: var(--bg-main);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            z-index: 10;
-            transition: opacity 0.3s ease, visibility 0.3s ease;
+            z-index: 5;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
             border-radius: var(--card-radius);
         }
         .page-loader.hidden {
@@ -162,10 +178,6 @@
     </div>
 
     <div class="content content-wrap">
-        <div class="page-loader" id="pageLoader">
-            <div class="spinner"></div>
-            <span class="text">Memuat data...</span>
-        </div>
         @if(session('error'))
             <div class="error"><i class="fas fa-circle-exclamation"></i>{{ session('error') }}</div>
         @endif
@@ -196,7 +208,13 @@
 
         <div class="section-title">Siswa</div>
 
-        <div class="list" id="studentList"></div>
+        <div class="list-wrap">
+            <div class="page-loader" id="pageLoader">
+                <div class="spinner"></div>
+                <span class="text">Memuat data...</span>
+            </div>
+            <div class="list" id="studentList"></div>
+        </div>
     </div>
 </div>
 
@@ -204,12 +222,12 @@
     <div class="modal">
         <div class="modal-title" id="modalTitle">Edit Presensi - Sholat 1</div>
         <div class="modal-sub" id="modalSub">-</div>
-        <form method="POST" action="{{ route('presensi.kelola.update') }}" id="editForm">
+        <form id="editForm">
             @csrf
             <input type="hidden" name="id" id="editId">
             <input type="hidden" name="session" id="editSession">
             <input type="hidden" name="status" id="editStatus">
-            <input type="hidden" name="tanggal" value="{{ $tanggal }}">
+            <input type="hidden" name="tanggal" value="{{ $tanggal }}" id="editTanggal">
             <div class="modal-options">
                 <button type="button" class="modal-opt alpa" data-status="Alpa">Alpa</button>
                 <button type="button" class="modal-opt izin" data-status="Izin">Izin</button>
@@ -271,22 +289,44 @@
         var el = document.querySelector('.date-value');
         if (el) el.textContent = t === today ? 'Hari ini' : t;
     }
-    function loadData(tanggal) {
-        showLoader();
-        fetch(dataUrl + '?tanggal=' + encodeURIComponent(tanggal))
+    function loadData(tanggal, page, append, search) {
+        page = page || 1;
+        append = !!append;
+        search = (typeof search !== 'undefined' ? search : (document.getElementById('searchInput') || {}).value || '').trim();
+        if (!append) showLoader();
+        var url = dataUrl + '?tanggal=' + encodeURIComponent(tanggal) + '&page=' + page + '&per_page=50';
+        if (search) url += '&search=' + encodeURIComponent(search);
+        fetch(url)
             .then(function (r) { return r.text(); })
             .then(function (html) {
                 var list = document.getElementById('studentList');
-                if (list) list.innerHTML = html;
+                if (!list) return;
+                if (append) {
+                    var tmp = document.createElement('div');
+                    tmp.innerHTML = html;
+                    var cards = tmp.querySelectorAll('.card-student');
+                    var loadMore = tmp.querySelector('.load-more-wrap');
+                    cards.forEach(function (c) { list.appendChild(c.cloneNode(true)); });
+                    var oldLm = list.querySelector('.load-more-wrap');
+                    if (oldLm) oldLm.remove();
+                    if (loadMore) list.appendChild(loadMore.cloneNode(true));
+                } else {
+                    list.innerHTML = html;
+                }
                 currentTanggal = tanggal;
-                updateDateDisplay(tanggal);
+                if (!append) updateDateDisplay(tanggal);
                 history.replaceState(null, '', '?tanggal=' + encodeURIComponent(tanggal));
             })
             .catch(function () {
                 var list = document.getElementById('studentList');
-                if (list) list.innerHTML = '<div class="error"><i class="fas fa-circle-exclamation"></i>Gagal memuat data. Silakan refresh halaman.</div>';
+                if (append) {
+                    var btn = list && list.querySelector('.btn-load-more');
+                    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-chevron-down"></i> Muat lebih banyak'; }
+                } else if (list) {
+                    list.innerHTML = '<div class="error"><i class="fas fa-circle-exclamation"></i>Gagal memuat data. Silakan refresh halaman.</div>';
+                }
             })
-            .finally(hideLoader);
+            .finally(function () { if (!append) hideLoader(); });
     }
 
     document.addEventListener('DOMContentLoaded', function () {
@@ -310,21 +350,13 @@
         }
 
         var searchInput = document.getElementById('searchInput');
-        var searchTimeout;
-        function doFilter() {
-            var q = searchInput.value.trim().toLowerCase();
-            var cards = document.querySelectorAll('.card-student');
-            var len = cards.length;
-            for (var i = 0; i < len; i++) {
-                var card = cards[i];
-                var show = q === '' || (card.dataset.search || '').indexOf(q) >= 0;
-                card.style.display = show ? '' : 'none';
-            }
-        }
         if (searchInput) {
+            var searchTimeout;
             searchInput.addEventListener('input', function () {
                 clearTimeout(searchTimeout);
-                searchTimeout = setTimeout(doFilter, 120);
+                searchTimeout = setTimeout(function () {
+                    loadData(currentTanggal, 1, false);
+                }, 300);
             });
         }
 
@@ -335,21 +367,95 @@
         var editId = document.getElementById('editId');
         var editSession = document.getElementById('editSession');
         var editStatus = document.getElementById('editStatus');
+        var updateUrl = '{{ route("presensi.kelola.update") }}';
+
+        function showToast(msg, isError) {
+            var old = document.querySelector('.toast');
+            if (old) old.remove();
+            var t = document.createElement('div');
+            t.className = 'toast ' + (isError ? 'error' : 'success');
+            t.innerHTML = '<i class="fas ' + (isError ? 'fa-circle-exclamation' : 'fa-check-circle') + '"></i>' + msg;
+            document.body.appendChild(t);
+            setTimeout(function () { t.remove(); }, 3500);
+        }
+
+        function doUpdate(id, session, status, cb) {
+            var fd = new FormData();
+            fd.append('_token', document.querySelector('input[name="_token"]').value);
+            fd.append('id', id);
+            fd.append('session', session);
+            fd.append('status', status);
+            fd.append('tanggal', currentTanggal);
+            fd.append('_ajax', '1');
+            fetch(updateUrl, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (r) { return r.json().catch(function () { return { ok: false }; }); })
+                .then(function (data) { if (cb) cb(null, data); })
+                .catch(function (err) { if (cb) cb(err, null); });
+        }
+
         document.querySelectorAll('.modal-opt[data-status]').forEach(function (btn) {
             btn.addEventListener('click', function () {
-                editStatus.value = this.dataset.status;
-                editForm.submit();
+                var status = this.dataset.status;
+                var ids = window._modalIds || [];
+                var session = editSession.value;
+                if (ids.length === 0) {
+                    ids = [{ id: editId.value }];
+                }
+                modal.classList.remove('open');
+                var total = ids.length;
+                var done = 0;
+                var ok = 0;
+                var errMsg = null;
+                ids.forEach(function (item) {
+                    doUpdate(item.id, session, status, function (err, data) {
+                        done++;
+                        if (!err && data && data.ok) ok++;
+                        else if (data && data.message) errMsg = data.message;
+                        if (done === total) {
+                            loadData(currentTanggal);
+                            if (ok === total) showToast(total > 1 ? 'Berhasil update ' + ok + ' presensi.' : 'Presensi berhasil diupdate.');
+                            else if (ok > 0) showToast('Berhasil ' + ok + '/' + total + '. ' + (errMsg || ''));
+                            else showToast(errMsg || 'Gagal mengupdate presensi.', true);
+                        }
+                    });
+                });
             });
         });
-        document.getElementById('studentList').addEventListener('click', function (e) {
+        document.getElementById('studentList') && document.getElementById('studentList').addEventListener('click', function (e) {
+            var loadMoreBtn = e.target.closest('.btn-load-more');
+            if (loadMoreBtn) {
+                var wrap = loadMoreBtn.closest('.load-more-wrap');
+                if (wrap && !loadMoreBtn.disabled) {
+                    var nextPage = parseInt(wrap.dataset.page || '1', 10) + 1;
+                    loadMoreBtn.disabled = true;
+                    loadMoreBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memuat...';
+                    loadData(currentTanggal, nextPage, true);
+                }
+                return;
+            }
             var btn = e.target.closest('.btn-edit-presensi');
             if (btn) {
                 e.preventDefault();
+                var card = btn.closest('.card-student');
+                var checked = [];
+                document.querySelectorAll('.card-student').forEach(function (c) {
+                    if (c.querySelector('.card-checkbox') && c.querySelector('.card-checkbox').checked) checked.push(c);
+                });
+                if (checked.length > 1 && card && card.querySelector('.card-checkbox:checked')) {
+                    window._modalIds = [];
+                    checked.forEach(function (c) {
+                        var b = c.querySelector('.btn-edit-presensi');
+                        if (b && b.dataset.id) window._modalIds.push({ id: b.dataset.id });
+                    });
+                } else {
+                    window._modalIds = [];
+                }
                 editId.value = btn.dataset.id || '';
                 editSession.value = btn.dataset.session || '';
                 modalTitle.textContent = 'Edit Presensi - Sholat ' + (btn.dataset.session || '');
-                modalSub.textContent = (btn.dataset.name || '') + (btn.dataset.unit ? ' - ' + btn.dataset.unit : '');
-                document.getElementById('editForm').querySelector('input[name="tanggal"]').value = currentTanggal;
+                var n = (window._modalIds.length || 0);
+                modalSub.textContent = n > 1 ? n + ' siswa terpilih (update jamak)' : ((btn.dataset.name || '') + (btn.dataset.unit ? ' - ' + btn.dataset.unit : ''));
+                document.getElementById('editTanggal').value = currentTanggal;
                 modal.classList.add('open');
             }
         });

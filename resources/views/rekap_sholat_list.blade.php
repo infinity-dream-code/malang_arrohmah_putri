@@ -14,7 +14,7 @@
     @php
         $title = $entry['NamaCust'] ?? $entry['NAMA'] ?? $entry['NAMASISWA'] ?? $entry['Nama'] ?? 'Siswa';
         $unitVal = $entry['UNIT'] ?? $entry['Unit'] ?? $entry['unit'] ?? null;
-        $nisVal = $entry['NIS'] ?? $entry['NOKARTU'] ?? $entry['nis'] ?? '';
+        $nisVal = $entry['NOCUST'] ?? $entry['nocust'] ?? $entry['NIS'] ?? $entry['NOKARTU'] ?? $entry['nis'] ?? '';
         $bulanParts = explode('-', $bulan);
         $bulanDisplay = count($bulanParts) >= 2 ? (int) $bulanParts[1] . '/' . $bulanParts[0] : $bulan;
         $searchText = strtolower($title . ' ' . $nisVal);
@@ -23,7 +23,8 @@
         <div class="card-header">
             <div>
                 <div class="card-title">{{ strtoupper($title) }}</div>
-                <div class="card-sub">NIS: {{ $nisVal }}@if($unitVal) · Unit: {{ $unitVal }}@endif</div>
+                <div class="card-sub card-sub-nis">NIS: {{ $nisVal ?: '-' }}</div>
+                @if($unitVal)<div class="card-sub">Unit: {{ $unitVal }}</div>@endif
             </div>
             <div class="chip-date">{{ $bulanDisplay }}</div>
         </div>
@@ -70,3 +71,8 @@
 @empty
     <div class="empty"><i class="fas fa-clipboard-list"></i>Tidak ada data rekap untuk bulan {{ $bulan }}.</div>
 @endforelse
+@if(!empty($entries) && !empty($hasMore))
+    <div class="load-more-wrap" data-page="{{ $page }}">
+        <button type="button" class="btn-load-more"><i class="fas fa-chevron-down"></i> Muat lebih banyak</button>
+    </div>
+@endif

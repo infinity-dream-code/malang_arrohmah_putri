@@ -448,9 +448,12 @@ class PresensiSholatController extends Controller
 
         $tanggal = $request->query('tanggal', now()->format('Y-m-d'));
         $today   = now()->format('Y-m-d');
+        $page    = max(1, (int) $request->query('page', 1));
+        $perPage = min(100, max(20, (int) $request->query('per_page', 50)));
+        $search  = trim((string) $request->query('search', ''));
 
         $cacheKey = 'kelola_presensi_' . $username . '_' . $tanggal;
-        $entries  = \Illuminate\Support\Facades\Cache::remember($cacheKey, 60, function () use ($username, $tanggal, $today) {
+        $all      = \Illuminate\Support\Facades\Cache::remember($cacheKey, 180, function () use ($username, $tanggal, $today) {
             if ($tanggal === $today) {
                 $payload = [
                     'METHOD'   => 'DetailPresensiRequestToday',
@@ -487,12 +490,35 @@ class PresensiSholatController extends Controller
             return $list;
         });
 
+        if ($search !== '') {
+            $q = mb_strtolower($search);
+            $all = array_values(array_filter($all, function ($e) use ($q) {
+                $nama = mb_strtolower($e['NamaCust'] ?? $e['NAMA'] ?? $e['NAMASISWA'] ?? $e['Nama'] ?? '');
+                $nis  = mb_strtolower($e['NIS'] ?? $e['NOKARTU'] ?? '');
+
+                return str_contains($nama, $q) || str_contains($nis, $q);
+            }));
+        }
+
+        $total   = count($all);
+        $entries = array_slice($all, ($page - 1) * $perPage, $perPage);
+        $hasMore = (($page - 1) * $perPage + count($entries)) < $total;
+
         $html = view('kelola_presensi_list', [
             'entries' => $entries,
             'tanggal' => $tanggal,
+            'page'    => $page,
+            'perPage' => $perPage,
+            'total'   => $total,
+            'hasMore' => $hasMore,
         ])->render();
 
-        return response($html, 200, ['Content-Type' => 'text/html']);
+        return response($html, 200, [
+            'Content-Type'     => 'text/html',
+            'X-Total-Count'    => (string) $total,
+            'X-Page'           => (string) $page,
+            'X-Has-More'       => $hasMore ? '1' : '0',
+        ]);
     }
 
     public function showRekapSholat(Request $request)
@@ -524,10 +550,13 @@ class PresensiSholatController extends Controller
             return response('', 401);
         }
 
-        $bulan = $request->query('bulan', now()->format('Y-m'));
+        $bulan   = $request->query('bulan', now()->format('Y-m'));
+        $page    = max(1, (int) $request->query('page', 1));
+        $perPage = min(100, max(20, (int) $request->query('per_page', 50)));
+        $search  = trim((string) $request->query('search', ''));
 
         $cacheKey = 'rekap_sholat_' . $username . '_' . $bulan;
-        $entries  = \Illuminate\Support\Facades\Cache::remember($cacheKey, 120, function () use ($username, $bulan) {
+        $all      = \Illuminate\Support\Facades\Cache::remember($cacheKey, 180, function () use ($username, $bulan) {
             $payload = [
                 'METHOD'  => 'RekapRequest',
                 'USERNAME' => $username,
@@ -557,12 +586,33 @@ class PresensiSholatController extends Controller
             return $list;
         });
 
+        if ($search !== '') {
+            $q   = mb_strtolower($search);
+            $all = array_values(array_filter($all, function ($e) use ($q) {
+                $nama = mb_strtolower($e['NamaCust'] ?? $e['NAMA'] ?? $e['NAMASISWA'] ?? $e['Nama'] ?? '');
+                $nis  = mb_strtolower($e['NOCUST'] ?? $e['nocust'] ?? $e['NIS'] ?? $e['NOKARTU'] ?? $e['nis'] ?? '');
+
+                return str_contains($nama, $q) || str_contains($nis, $q);
+            }));
+        }
+
+        $total   = count($all);
+        $entries = array_slice($all, ($page - 1) * $perPage, $perPage);
+        $hasMore = (($page - 1) * $perPage + count($entries)) < $total;
+
         $html = view('rekap_sholat_list', [
             'entries' => $entries,
             'bulan'   => $bulan,
+            'page'    => $page,
+            'total'   => $total,
+            'hasMore' => $hasMore,
         ])->render();
 
-        return response($html, 200, ['Content-Type' => 'text/html']);
+        return response($html, 200, [
+            'Content-Type'  => 'text/html',
+            'X-Total-Count' => (string) $total,
+            'X-Has-More'    => $hasMore ? '1' : '0',
+        ]);
     }
 
     public function updatePresensi(Request $request)
@@ -606,28 +656,40 @@ class PresensiSholatController extends Controller
                 ->get(self::API_BASE_URL_PRESENSI_SHOLAT . '?token=' . urlencode($token));
 
             $data = $response->json();
+            $item = (is_array($data) && isset($data[0])) ? $data[0] : (is_array($data) ? $data : []);
+            $isOk = ($item['STATUS'] ?? '') === 'OK' || ((int) ($item['KodeRespon'] ?? 0)) === 1;
 
-            if ($response->ok() && is_array($data) && isset($data[0])) {
-                $item = $data[0];
-                if (($item['STATUS'] ?? '') === 'OK') {
+            if ($response->ok() && $data !== null) {
+                if ($isOk) {
                     $tanggal = $request->input('tanggal', now()->format('Y-m-d'));
                     $username = session('user.username');
                     if ($username) {
                         \Illuminate\Support\Facades\Cache::forget('kelola_presensi_' . $username . '_' . $tanggal);
                     }
+                    if ($request->ajax() || $request->wantsJson()) {
+                        return response()->json(['ok' => true]);
+                    }
                     return redirect()->route('presensi.kelola', ['tanggal' => $tanggal])
                         ->with('success', 'Presensi berhasil diupdate.');
                 }
-                $msg = $item['RES'] ?? $item['PesanRespon'] ?? null;
-                if ($msg) {
-                    return back()->with('error', $msg);
+                $msg = $item['RES'] ?? $item['PesanRespon'] ?? $item['message'] ?? 'Update gagal.';
+                Log::info('UpdatePresensi API returned non-OK', ['response' => $data, 'id' => $validated['id'], 'session' => $validated['session']]);
+                if ($request->ajax() || $request->wantsJson()) {
+                    return response()->json(['ok' => false, 'message' => $msg]);
                 }
+                return back()->with('error', $msg);
             }
 
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['ok' => false, 'message' => 'Response tidak valid dari server.']);
+            }
             $tanggal = $request->input('tanggal', now()->format('Y-m-d'));
             return redirect()->route('presensi.kelola', ['tanggal' => $tanggal]);
         } catch (\Throwable $e) {
             Log::error('UpdatePresensi error', ['message' => $e->getMessage()]);
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['ok' => false, 'message' => 'Tidak dapat terhubung ke server.']);
+            }
             return back()->with('error', 'Tidak dapat terhubung ke server.');
         }
     }
