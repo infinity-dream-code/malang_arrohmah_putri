@@ -3,10 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ganti Password</title>
-    @php
-        $pageTitle = 'Ganti Password';
-    @endphp
+    <title>Dashboard Presensi Sholat</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -182,60 +179,19 @@
         }
         .card {
             margin-top: 20px;
-            background: #f5ebff;
-            border-radius: 18px;
-            padding: 16px 12px 20px;
-            box-shadow: 0 12px 30px rgba(109, 40, 217, 0.15);
-        }
-        .form-group {
-            margin-bottom: 12px;
-        }
-        .input-wrapper {
-            position: relative;
-            display: flex;
-            align-items: center;
-        }
-        .input-icon {
-            position: absolute;
-            left: 14px;
-            font-size: 1rem;
-            color: #a1a0b8;
-        }
-        input[type="password"] {
-            width: 100%;
-            border-radius: 14px;
-            border: 1.5px solid #d0b4ff;
-            padding: 12px 14px 12px 42px;
-            font-size: 0.95rem;
-            font-family: inherit;
             background: #ffffff;
-            outline: none;
-            transition: border-color 0.15s ease;
+            border-radius: 22px;
+            padding: 18px 16px 20px;
+            box-shadow: 0 20px 40px rgba(109, 40, 217, 0.25);
         }
-        input[type="password"]:focus {
-            border-color: #a855f7;
+        .card h2 {
+            margin: 0 0 8px;
+            font-size: 1.1rem;
         }
-        .btn-submit {
-            margin-top: 14px;
-            width: 100%;
-            border-radius: 999px;
-            border: none;
-            padding: 13px 18px;
-            font-size: 0.98rem;
-            font-weight: 600;
-            letter-spacing: 0.04em;
-            color: #ffffff;
-            background: linear-gradient(135deg, #a855f7, #9333ea);
-            box-shadow: 0 14px 32px rgba(109, 40, 217, 0.45);
-            cursor: pointer;
-            transition: transform 0.12s ease, box-shadow 0.12s ease;
-        }
-        .btn-submit:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 16px 36px rgba(109, 40, 217, 0.55);
-        }
-        .btn-submit:active {
-            transform: translateY(0);
+        .card p {
+            margin: 0;
+            font-size: 0.9rem;
+            color: #6b607f;
         }
         @media (min-width: 960px) {
             body {
@@ -271,59 +227,16 @@
                 <span></span>
                 <span></span>
             </button>
-            <div class="title">{{ $pageTitle }}</div>
+            <div class="title">Presensi Sholat</div>
         </div>
 
-        <main class="content">
+        <div class="content">
             <div class="card">
-                <form method="POST" action="{{ route('account.ganti-password.post') }}">
-                    @csrf
-
-                    <div class="form-group">
-                        <div class="input-wrapper">
-                            <span class="input-icon">🔒</span>
-                            <input
-                                type="password"
-                                name="old_password"
-                                id="old_password"
-                                placeholder="Password Lama"
-                                required>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <div class="input-wrapper">
-                            <span class="input-icon">🔒</span>
-                            <input
-                                type="password"
-                                name="new_password"
-                                id="new_password"
-                                placeholder="Password Baru"
-                                required
-                                minlength="3">
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <div class="input-wrapper">
-                            <span class="input-icon">🔒</span>
-                            <input
-                                type="password"
-                                name="confirm_password"
-                                id="confirm_password"
-                                placeholder="Konfirmasi Password Baru"
-                                required>
-                        </div>
-                    </div>
-
-                    <button type="submit" class="btn-submit">
-                        Ganti Password
-                    </button>
-                </form>
+                <h2>Presensi Sholat</h2>
+                <p>Pilih menu di sidebar (ikon burger) untuk navigasi ke halaman presensi sholat lainnya.</p>
             </div>
-        </main>
+        </div>
     </div>
-
     <div class="drawer-backdrop" id="drawerBackdrop"></div>
     <aside class="drawer" id="drawer">
         <div class="drawer-header">
@@ -331,41 +244,53 @@
                 <img src="{{ asset('logo.png') }}" alt="Logo">
             </div>
             <div>
-                <div class="drawer-user-name">{{ session('user.username', 'farrelep') }}</div>
-                <div class="drawer-user-role">Superadmin</div>
+                <div class="drawer-user-name">{{ session('user.username', '-') }}</div>
+                <div class="drawer-user-role">User</div>
             </div>
         </div>
 
         <div class="drawer-divider"></div>
 
-        <div class="drawer-menu-label">Perizinan</div>
+        <div class="drawer-menu-label">Presensi Sholat</div>
         <ul class="drawer-menu">
             <li class="drawer-item">
-                <a href="{{ route('perizinan.kedatangan') }}" class="drawer-link">
-                    <span class="icon"><i class="fas fa-user-clock"></i></span>
-                    <span>Kedatangan/Kepulangan</span>
+                <a href="{{ route('presensi-sholat.qr') }}" class="drawer-link">
+                    <span class="icon"><i class="fas fa-qrcode"></i></span>
+                    <span>Presensi Sholat</span>
                 </a>
             </li>
             <li class="drawer-item">
-                <a href="{{ route('perizinan.umum') }}" class="drawer-link">
-                    <span class="icon"><i class="fas fa-pen-to-square"></i></span>
-                    <span>Perizinan Umum</span>
+                <a href="{{ route('presensi-haid.qr') }}" class="drawer-link">
+                    <span class="icon"><i class="fas fa-qrcode"></i></span>
+                    <span>Presensi Haid</span>
                 </a>
             </li>
             <li class="drawer-item">
-                <a href="{{ route('perizinan.khusus') }}" class="drawer-link">
-                    <span class="icon"><i class="fas fa-user-group"></i></span>
-                    <span>Perizinan Khusus</span>
+                <a href="{{ route('presensi.log-marifah') }}" class="drawer-link">
+                    <span class="icon"><i class="fas fa-rectangle-list"></i></span>
+                    <span>Log Marifah</span>
                 </a>
             </li>
             <li class="drawer-item">
-                <a href="{{ route('laporan') }}" class="drawer-link">
-                    <span class="icon"><i class="fas fa-file-lines"></i></span>
-                    <span>Laporan Perizinan</span>
+                <a href="{{ route('presensi.log-presensi') }}" class="drawer-link">
+                    <span class="icon"><i class="fas fa-square-check"></i></span>
+                    <span>Log Presensi</span>
                 </a>
             </li>
             <li class="drawer-item">
-                <a href="{{ route('account.ganti-password') }}" class="drawer-link active">
+                <a href="{{ route('presensi.kelola') }}" class="drawer-link">
+                    <span class="icon"><i class="fas fa-arrows-rotate"></i></span>
+                    <span>Kelola Presensi</span>
+                </a>
+            </li>
+            <li class="drawer-item">
+                <a href="{{ route('presensi.rekap-sholat') }}" class="drawer-link">
+                    <span class="icon"><i class="fas fa-chart-simple"></i></span>
+                    <span>Rekap Sholat</span>
+                </a>
+            </li>
+            <li class="drawer-item">
+                <a href="{{ route('presensi.account.ganti-password') }}" class="drawer-link">
                     <span class="icon"><i class="fas fa-gear"></i></span>
                     <span>Account Controls</span>
                 </a>
@@ -408,33 +333,18 @@
 
         backdrop.addEventListener('click', closeDrawer);
     </script>
-
-    @if (session('password_error'))
-        <script>
-            document.addEventListener('DOMContentLoaded', function () {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Gagal Mengubah Password',
-                    text: @json(session('password_error')),
-                    confirmButtonColor: '#a855f7'
-                });
-            });
-        </script>
-    @endif
-
-    @if (session('password_success'))
+    @if (session('login_success'))
         <script>
             document.addEventListener('DOMContentLoaded', function () {
                 Swal.fire({
                     icon: 'success',
                     title: 'Berhasil',
-                    text: @json(session('password_success')),
+                    text: @json(session('login_success')),
                     confirmButtonColor: '#a855f7'
-                }).then(function () {
-                    window.location.href = @json(session('user.app') === 'presensi-sholat' ? route('dashboard.presensi-sholat') : route('dashboard'));
                 });
             });
         </script>
     @endif
 </body>
 </html>
+

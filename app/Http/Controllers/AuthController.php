@@ -8,14 +8,15 @@ use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
-    private const API_BASE_URL = 'http://vps1.smartpayment.co.id:8888/Data/Malang_Arrohmah_Putri_Perizinan/WebAPI.php';
+    private const API_BASE_URL_PERIZINAN = 'http://vps1.smartpayment.co.id:8888/Data/Malang_Arrohmah_Putri_Perizinan/WebAPI.php';
+    private const API_BASE_URL_PRESENSI_SHOLAT = 'http://vps1.smartpayment.co.id:8888/Data/Malang_Arrohmah_Putri_PresensiSholat/WebAPI.php';
     private const JWT_SECRET = 'a7c2a8a9b3c4a5a6a7a8a9b0c1a2a3';
 
     public function showLogin()
     {
         // Jika sudah login, redirect ke dashboard
         if (session()->has('user') && session('user.username')) {
-            return redirect()->route('dashboard');
+            return redirect()->route($this->dashboardRouteName(session('user.app')));
         }
         return view('login');
     }
@@ -34,6 +35,8 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
+        $apiBaseUrl = $this->apiBaseUrlFor($validated['app']);
+
         Log::info('Login attempt received', [
             'app' => $validated['app'],
             'username' => $validated['username'],
@@ -49,12 +52,12 @@ class AuthController extends Controller
 
         try {
             Log::info('Sending request to external API', [
-                'url' => self::API_BASE_URL,
+                'url' => $apiBaseUrl,
                 'token_preview' => substr($token, 0, 40) . '...',
             ]);
 
             $response = Http::timeout(15)
-                ->get(self::API_BASE_URL . '?token=' . urlencode($token));
+                ->get($apiBaseUrl . '?token=' . urlencode($token));
 
             Log::info('External API response raw', [
                 'status' => $response->status(),
@@ -101,7 +104,9 @@ class AuthController extends Controller
             $izinTypesSpecial = $this->fetchIzinTypes('SpecialEntryListRequest');
             $request->session()->put('izin_types_special', $izinTypesSpecial);
 
-            return redirect()->route('dashboard');
+            return redirect()
+                ->route($this->dashboardRouteName($validated['app']))
+                ->with('login_success', 'Login berhasil.');
         }
 
         $message = $data['PesanRespon'] ?? 'Login gagal. Akses Ditolak.';
@@ -146,7 +151,7 @@ class AuthController extends Controller
 
         try {
             $response = Http::timeout(10)
-                ->get(self::API_BASE_URL . '?token=' . urlencode($token));
+                ->get(self::API_BASE_URL_PERIZINAN . '?token=' . urlencode($token));
 
             if ($response->ok()) {
                 $data = $response->json();
@@ -166,9 +171,34 @@ class AuthController extends Controller
         return [];
     }
 
+    private function apiBaseUrlFor(?string $app): string
+    {
+        return $app === 'presensi-sholat'
+            ? self::API_BASE_URL_PRESENSI_SHOLAT
+            : self::API_BASE_URL_PERIZINAN;
+    }
+
+    private function dashboardRouteName(?string $app): string
+    {
+        return $app === 'presensi-sholat'
+            ? 'dashboard.presensi-sholat'
+            : 'dashboard';
+    }
+
     public function showGantiPassword()
     {
+        if (session('user.app') === 'presensi-sholat') {
+            return redirect()->route('presensi.account.ganti-password');
+        }
         return view('ganti_password');
+    }
+
+    public function showGantiPasswordPresensi()
+    {
+        if (session('user.app') !== 'presensi-sholat') {
+            return redirect()->route('account.ganti-password');
+        }
+        return view('ganti_password_presensi');
     }
 
     public function gantiPassword(Request $request)
@@ -184,17 +214,16 @@ class AuthController extends Controller
             return back()->with('password_error', 'Session tidak valid. Silakan login kembali.');
         }
 
+        $apiBaseUrl = $this->apiBaseUrlFor(session('user.app'));
+
         $oldPassword = $validated['old_password'];
 
-        $now = now()->timestamp;
         $payload = [
             'METHOD'       => 'RequestNewPassword',
             'USERNAME'     => $username,
             'PASSWORD'     => $oldPassword,
             'NEWPASSWORD'  => $validated['new_password'],
             'NEWPASSWORD2' => $validated['confirm_password'],
-            'iat'          => $now,
-            'exp'          => $now + 300,
         ];
 
         // Log payload untuk debugging
@@ -220,7 +249,7 @@ class AuthController extends Controller
                 'token_length' => strlen($token),
             ]);
 
-            $url = self::API_BASE_URL . '?token=' . urlencode($token);
+            $url = $apiBaseUrl . '?token=' . urlencode($token);
             Log::info('Ganti password API URL', [
                 'url_preview' => substr($url, 0, 100) . '...',
                 'url_length' => strlen($url),
@@ -243,7 +272,7 @@ class AuthController extends Controller
                     Log::info('Trying POST with token in form body');
                     $response = Http::timeout(15)
                         ->asForm()
-                        ->post(self::API_BASE_URL, ['token' => $token]);
+                        ->post($apiBaseUrl, ['token' => $token]);
                 }
                 
                 // Jika masih 500, coba variasi 3: POST dengan token di body sebagai JSON
@@ -251,7 +280,7 @@ class AuthController extends Controller
                     Log::info('Trying POST with token in JSON body');
                     $response = Http::timeout(15)
                         ->asJson()
-                        ->post(self::API_BASE_URL, ['token' => $token]);
+                        ->post($apiBaseUrl, ['token' => $token]);
                 }
             }
 

@@ -227,12 +227,18 @@
 
             <form method="POST" action="{{ route('login') }}">
                 @csrf
-                <input type="hidden" name="app" value="super-artri">
                 <div class="form-group">
-                    <label>Aplikasi</label>
-                    <div class="app-badge">
-                        <i class="fas fa-layer-group"></i>
-                        <span>Aplikasi SuPer Artri</span>
+                    <label for="app">Aplikasi</label>
+                    <div class="input-wrap">
+                        <span class="icon"><i class="fas fa-layer-group"></i></span>
+                        <select id="app" name="app" required>
+                            <option value="super-artri" {{ old('app', 'super-artri') === 'super-artri' ? 'selected' : '' }}>
+                                Aplikasi SuPer Artri
+                            </option>
+                            <option value="presensi-sholat" {{ old('app') === 'presensi-sholat' ? 'selected' : '' }}>
+                                Aplikasi Presensi Sholat
+                            </option>
+                        </select>
                     </div>
                 </div>
 
