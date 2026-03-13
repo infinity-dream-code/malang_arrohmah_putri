@@ -153,14 +153,6 @@
                        title="Export Excel untuk bulan terpilih">
                         <i class="fas fa-file-excel"></i> Export Excel
                     </a>
-                    <a href="#"
-                       id="btnExportPdf"
-                       data-export-base="{{ route('presensi.rekap-sholat.export-pdf') }}"
-                       class="btn-date"
-                       style="background:#1f2937;box-shadow:0 4px 14px rgba(15,23,42,0.35);"
-                       title="Export PDF untuk bulan terpilih">
-                        <i class="fas fa-file-pdf"></i> Export PDF
-                    </a>
                 </div>
             </div>
         </form>
