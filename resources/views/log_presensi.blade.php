@@ -244,23 +244,27 @@
             opacity: 0.95;
         }
         .sholat-sholat {
-            background: var(--green-bg);
+            background: #86efac;
             color: #065f46;
         }
         .sholat-izin {
-            background: var(--yellow-bg);
-            color: #92400e;
+            background: #fef08a;
+            color: #854d0e;
         }
         .sholat-alpa {
-            background: var(--red-bg);
+            background: #fca5a5;
             color: #991b1b;
         }
-        .sholat-sakit {
-            background: #fce7f3;
+        .sholat-haid {
+            background: #fbcfe8;
             color: #9d174d;
         }
+        .sholat-sakit {
+            background: #bae6fd;
+            color: #0369a1;
+        }
         .sholat-belum {
-            background: var(--gray-bg);
+            background: #e5e7eb;
             color: var(--gray);
         }
         .empty {
@@ -314,11 +318,21 @@
                     <span class="date-label">Tanggal</span>
                     <span class="date-value">{{ $tanggal === $today ? 'Hari ini' : $tanggal }}</span>
                 </div>
-                <input type="date" name="tanggal" value="{{ $tanggal }}" max="{{ $today }}" style="display:none;" id="tanggalPicker">
-                <button type="button" class="btn-date" onclick="document.getElementById('tanggalPicker').showPicker && document.getElementById('tanggalPicker').showPicker();">
-                    <i class="fas fa-calendar-days"></i>
-                    Pilih tanggal
-                </button>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;">
+                    <input type="date" name="tanggal" value="{{ $tanggal }}" max="{{ $today }}" style="display:none;" id="tanggalPicker">
+                    <button type="button" class="btn-date" onclick="document.getElementById('tanggalPicker').showPicker && document.getElementById('tanggalPicker').showPicker();">
+                        <i class="fas fa-calendar-days"></i>
+                        Pilih tanggal
+                    </button>
+                    <a href="{{ route('presensi.log-presensi.export-excel', ['tanggal' => $tanggal]) }}" class="btn-date" style="background:#0f766e;">
+                        <i class="fas fa-file-excel"></i>
+                        Excel
+                    </a>
+                    <a href="{{ route('presensi.log-presensi.export-pdf', ['tanggal' => $tanggal]) }}" class="btn-date" style="background:#1f2937;">
+                        <i class="fas fa-file-pdf"></i>
+                        PDF
+                    </a>
+                </div>
             </div>
         </form>
 
@@ -361,6 +375,7 @@
                         <div class="chip-date">{{ $tanggalItem }}</div>
                     </div>
                     @php
+                        $sholatNames = ['', 'Subuh', 'Dzuhur', 'Ashar', 'Maghrib', 'Isya'];
                         $sholatRows = [];
                         for ($i = 1; $i <= 5; $i++) {
                             $jadwalKey = 'JADWAL_' . $i;
@@ -372,6 +387,7 @@
                             if ($statusVal !== null) {
                                 $sholatRows[] = [
                                     'index'  => $i,
+                                    'name'   => $sholatNames[$i],
                                     'status' => $statusVal,
                                     'jam'    => $jamVal,
                                     'user'   => $userVal,
@@ -384,24 +400,32 @@
                             @foreach($sholatRows as $row)
                                 @php
                                     $s = strtoupper((string) $row['status']);
-                                    if (in_array($s, ['SHOLAT', 'HAID'])) {
+                                    if ($s === 'SHOLAT') {
                                         $cls = 'sholat-item sholat-sholat';
+                                        $statusLabel = 'Sholat';
+                                    } elseif ($s === 'HAID') {
+                                        $cls = 'sholat-item sholat-haid';
+                                        $statusLabel = 'Haid';
                                     } elseif ($s === 'IZIN' || $s === 'TIDAK HADIR') {
                                         $cls = 'sholat-item sholat-izin';
+                                        $statusLabel = 'Izin';
                                     } elseif ($s === 'ALPA') {
                                         $cls = 'sholat-item sholat-alpa';
+                                        $statusLabel = 'Alpa';
                                     } elseif ($s === 'SAKIT') {
                                         $cls = 'sholat-item sholat-sakit';
+                                        $statusLabel = 'Sakit';
                                     } elseif ($s === 'BELUM PRESENSI') {
                                         $cls = 'sholat-item sholat-belum';
+                                        $statusLabel = 'Belum';
                                     } else {
                                         $cls = 'sholat-item sholat-sholat';
+                                        $statusLabel = $row['status'];
                                     }
-                                    $subLine = $row['jam'] ? trim($row['jam'] . ' ' . ($row['status'] ?? '') . ' ' . ($row['user'] ?? '')) : ($row['status'] . ($row['user'] ? ' ' . $row['user'] : ''));
                                 @endphp
                                 <div class="{{ $cls }}">
-                                    <div class="sholat-label">Sholat {{ $row['index'] }}</div>
-                                    <div class="sholat-sub">{{ $subLine ?: '-' }}</div>
+                                    <div class="sholat-label">{{ $row['name'] }}</div>
+                                    <div class="sholat-sub">{{ $statusLabel }}</div>
                                 </div>
                             @endforeach
                         </div>

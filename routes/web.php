@@ -38,6 +38,8 @@ Route::middleware(['check.auth'])->group(function () {
 
     Route::get('/log-marifah', [PresensiSholatController::class, 'showLogMarifah'])->name('presensi.log-marifah');
     Route::get('/log-presensi', [PresensiSholatController::class, 'showLogPresensi'])->name('presensi.log-presensi');
+    Route::get('/log-presensi/export-excel', [PresensiSholatController::class, 'exportLogPresensiExcel'])->name('presensi.log-presensi.export-excel');
+    Route::get('/log-presensi/export-pdf', [PresensiSholatController::class, 'exportLogPresensiPdf'])->name('presensi.log-presensi.export-pdf');
 
     Route::get('/kelola-presensi', [PresensiSholatController::class, 'showKelolaPresensi'])->name('presensi.kelola');
     Route::get('/kelola-presensi/data', [PresensiSholatController::class, 'kelolaPresensiData'])->name('presensi.kelola.data');
@@ -45,6 +47,8 @@ Route::middleware(['check.auth'])->group(function () {
 
     Route::get('/rekap-sholat', [PresensiSholatController::class, 'showRekapSholat'])->name('presensi.rekap-sholat');
     Route::get('/rekap-sholat/data', [PresensiSholatController::class, 'rekapSholatData'])->name('presensi.rekap-sholat.data');
+    Route::get('/rekap-sholat/export-excel', [PresensiSholatController::class, 'exportRekapSholatExcel'])->name('presensi.rekap-sholat.export-excel');
+    Route::get('/rekap-sholat/export-pdf', [PresensiSholatController::class, 'exportRekapSholatPdf'])->name('presensi.rekap-sholat.export-pdf');
 
     Route::get('/students/search', [StudentController::class, 'liveSearch'])->name('students.search');
 

@@ -5,6 +5,10 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\RekapSholatExport;
 
 class PresensiSholatController extends Controller
 {
@@ -447,10 +451,13 @@ class PresensiSholatController extends Controller
         }
 
         $tanggal = $request->query('tanggal', now()->format('Y-m-d'));
-        $today   = now()->format('Y-m-d');
-        $page    = max(1, (int) $request->query('page', 1));
-        $perPage = min(100, max(20, (int) $request->query('per_page', 50)));
-        $search  = trim((string) $request->query('search', ''));
+        $today     = now()->format('Y-m-d');
+        $page      = max(1, (int) $request->query('page', 1));
+        $perPage   = min(100, max(20, (int) $request->query('per_page', 50)));
+        $search    = trim((string) $request->query('search', ''));
+        $unit      = trim((string) $request->query('unit', ''));
+        $musyrifah = trim((string) $request->query('musyrifah', ''));
+        $sort      = trim((string) $request->query('sort', 'unit_asc'));
 
         $cacheKey = 'kelola_presensi_' . $username . '_' . $tanggal;
         $all      = \Illuminate\Support\Facades\Cache::remember($cacheKey, 180, function () use ($username, $tanggal, $today) {
@@ -490,6 +497,31 @@ class PresensiSholatController extends Controller
             return $list;
         });
 
+        // Simpan list unit & musyrifah dari seluruh data (untuk filter dropdown)
+        $allUnits = [];
+        $allMus   = [];
+        foreach ($all as $e) {
+            $u = (string) ($e['UNIT'] ?? $e['Unit'] ?? '');
+            if ($u !== '' && ! in_array($u, $allUnits, true)) {
+                $allUnits[] = $u;
+            }
+
+            // Musyrifah: kolom khusus jika ada, lalu USER_1..5 selain "System"
+            $m = $e['Musrifah'] ?? $e['MUSRIFAH'] ?? $e['Musftr'] ?? null;
+            if ($m !== null && $m !== '' && strtoupper((string) $m) !== 'SYSTEM') {
+                if (! in_array((string) $m, $allMus, true)) {
+                    $allMus[] = (string) $m;
+                }
+            }
+            for ($i = 1; $i <= 5; $i++) {
+                $k = 'USER_' . $i;
+                $v = $e[$k] ?? null;
+                if ($v !== null && $v !== '' && strtoupper((string) $v) !== 'SYSTEM' && ! in_array((string) $v, $allMus, true)) {
+                    $allMus[] = (string) $v;
+                }
+            }
+        }
+
         if ($search !== '') {
             $q = mb_strtolower($search);
             $all = array_values(array_filter($all, function ($e) use ($q) {
@@ -500,17 +532,62 @@ class PresensiSholatController extends Controller
             }));
         }
 
+        if ($unit !== '') {
+            $u = mb_strtolower($unit);
+            $all = array_values(array_filter($all, function ($e) use ($u) {
+                $unitVal = mb_strtolower($e['UNIT'] ?? $e['Unit'] ?? '');
+                return $unitVal === $u;
+            }));
+        }
+
+        if ($musyrifah !== '') {
+            $m = mb_strtolower($musyrifah);
+            $all = array_values(array_filter($all, function ($e) use ($m) {
+                $first = '';
+                for ($i = 1; $i <= 5; $i++) {
+                    $k = 'USER_' . $i;
+                    $v = $e[$k] ?? null;
+                    if ($v !== null && $v !== '') {
+                        $first = (string) $v;
+                        break;
+                    }
+                }
+                return mb_strtolower($first) === $m;
+            }));
+        }
+
+        usort($all, function ($a, $b) use ($sort) {
+            $unitA = (string) ($a['UNIT'] ?? $a['Unit'] ?? '');
+            $unitB = (string) ($b['UNIT'] ?? $b['Unit'] ?? '');
+            $nameA = (string) ($a['NamaCust'] ?? $a['NAMA'] ?? $a['NAMASISWA'] ?? $a['Nama'] ?? '');
+            $nameB = (string) ($b['NamaCust'] ?? $b['NAMA'] ?? $b['NAMASISWA'] ?? $b['Nama'] ?? '');
+
+            $cmpUnit = strcasecmp($unitA, $unitB);
+            $cmpName = strcasecmp($nameA, $nameB);
+
+            if ($sort === 'unit_desc') {
+                $cmpUnit *= -1;
+            }
+
+            return $cmpUnit !== 0 ? $cmpUnit : $cmpName;
+        });
+
         $total   = count($all);
         $entries = array_slice($all, ($page - 1) * $perPage, $perPage);
         $hasMore = (($page - 1) * $perPage + count($entries)) < $total;
 
+        sort($allUnits);
+        sort($allMus);
+
         $html = view('kelola_presensi_list', [
-            'entries' => $entries,
-            'tanggal' => $tanggal,
-            'page'    => $page,
-            'perPage' => $perPage,
-            'total'   => $total,
-            'hasMore' => $hasMore,
+            'entries'    => $entries,
+            'tanggal'    => $tanggal,
+            'page'       => $page,
+            'perPage'    => $perPage,
+            'total'      => $total,
+            'hasMore'    => $hasMore,
+            'allUnits'   => $allUnits,
+            'allMuslist' => $allMus,
         ])->render();
 
         return response($html, 200, [
@@ -615,6 +692,126 @@ class PresensiSholatController extends Controller
         ]);
     }
 
+    public function exportRekapSholatExcel(Request $request)
+    {
+        if (session('user.app') !== 'presensi-sholat') {
+            return redirect()->route('dashboard');
+        }
+
+        $username = session('user.username');
+        if (! $username) {
+            return redirect()->route('login.form');
+        }
+
+        $bulan = $request->query('bulan', now()->format('Y-m'));
+
+        $cacheKey = 'rekap_sholat_' . $username . '_' . $bulan;
+
+        $all = Cache::remember($cacheKey, 180, function () use ($username, $bulan) {
+            $payload = [
+                'METHOD' => 'RekapRequest',
+                'USERNAME' => $username,
+                'BULAN' => $bulan,
+            ];
+
+            $token = $this->generateJwt($payload);
+            $list = [];
+
+            try {
+                $response = Http::timeout(25)->get(self::API_BASE_URL_PRESENSI_SHOLAT . '?token=' . urlencode($token));
+
+                if ($response->ok()) {
+                    $data = $response->json();
+                    if (is_array($data)) {
+                        $list = $data['datas'] ?? $data;
+                        if (! is_array($list)) {
+                            $list = [];
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::error('RekapSholat export data error', ['message' => $e->getMessage()]);
+            }
+
+            return $list;
+        });
+
+        if (empty($all)) {
+            return redirect()
+                ->route('presensi.rekap-sholat', ['bulan' => $bulan])
+                ->with('error', 'Tidak ada data untuk diexport.');
+        }
+
+        $flat = $this->flattenRekapDatas($all);
+
+        $filename = 'rekap_sholat_' . str_replace([':', ' '], '_', $bulan) . '.xlsx';
+
+        return Excel::download(
+            new RekapSholatExport($flat, $bulan),
+            $filename
+        );
+    }
+
+    public function exportRekapSholatPdf(Request $request)
+    {
+        if (session('user.app') !== 'presensi-sholat') {
+            return redirect()->route('dashboard');
+        }
+
+        $username = session('user.username');
+        if (! $username) {
+            return redirect()->route('login.form');
+        }
+
+        $bulan = $request->query('bulan', now()->format('Y-m'));
+
+        $cacheKey = 'rekap_sholat_' . $username . '_' . $bulan;
+        $all      = \Illuminate\Support\Facades\Cache::remember($cacheKey, 180, function () use ($username, $bulan) {
+            $payload = [
+                'METHOD'  => 'RekapRequest',
+                'USERNAME' => $username,
+                'BULAN'   => $bulan,
+            ];
+
+            $token = $this->generateJwt($payload);
+            $list  = [];
+
+            try {
+                $response = Http::timeout(25)
+                    ->get(self::API_BASE_URL_PRESENSI_SHOLAT . '?token=' . urlencode($token));
+
+                if ($response->ok()) {
+                    $data = $response->json();
+                    if (is_array($data)) {
+                        $list = $data['datas'] ?? $data;
+                        if (! is_array($list)) {
+                            $list = [];
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::error('RekapSholat pdf data error', ['message' => $e->getMessage()]);
+            }
+
+            return $list;
+        });
+
+        if (empty($all)) {
+            return redirect()
+                ->route('presensi.rekap-sholat', ['bulan' => $bulan])
+                ->with('error', 'Tidak ada data untuk diexport.');
+        }
+
+        $pdf = Pdf::loadView('rekap_sholat_pdf', [
+            'entries' => $all,
+            'bulan'   => $bulan,
+        ])->setPaper('a4', 'landscape');
+
+        $filename = 'rekap_sholat_' . str_replace([':', ' '], '_', $bulan) . '.pdf';
+
+        return $pdf->download($filename);
+    }
+
     public function updatePresensi(Request $request)
     {
         if (session('user.app') !== 'presensi-sholat') {
@@ -694,6 +891,171 @@ class PresensiSholatController extends Controller
         }
     }
 
+    public function exportLogPresensiExcel(Request $request)
+    {
+        if (session('user.app') !== 'presensi-sholat') {
+            return redirect()->route('dashboard');
+        }
+
+        $username = session('user.username');
+        if (! $username) {
+            return redirect()->route('login.form');
+        }
+
+        $tanggal = $request->query('tanggal');
+        $today   = now()->format('Y-m-d');
+        if (! $tanggal) {
+            $tanggal = $today;
+        }
+
+        if ($tanggal === $today) {
+            $payload = [
+                'METHOD'   => 'LogPresensiTodayRequest',
+                'USERNAME' => $username,
+            ];
+        } else {
+            $payload = [
+                'METHOD'   => 'LogPresensiRequest',
+                'USERNAME' => $username,
+                'HARIOUT'  => $tanggal,
+            ];
+        }
+
+        $token = $this->generateJwt($payload);
+        $entries = [];
+
+        try {
+            $response = Http::timeout(20)
+                ->get(self::API_BASE_URL_PRESENSI_SHOLAT . '?token=' . urlencode($token));
+
+            if ($response->ok()) {
+                $data = $response->json();
+                if (is_array($data)) {
+                    $entries = $data['datas'] ?? $data;
+                    if (! is_array($entries)) {
+                        $entries = [];
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::error('LogPresensi export error', ['message' => $e->getMessage()]);
+        }
+
+        if (empty($entries)) {
+            return redirect()
+                ->route('presensi.log-presensi', ['tanggal' => $tanggal])
+                ->with('error', 'Tidak ada data untuk diexport.');
+        }
+
+        $filename = 'log_presensi_' . str_replace([':', ' '], '_', $tanggal) . '.xlsx';
+
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\LogPresensiExport($entries, $tanggal),
+            $filename,
+            \Maatwebsite\Excel\Excel::XLSX
+        );
+    }
+
+    public function exportLogPresensiPdf(Request $request)
+    {
+        if (session('user.app') !== 'presensi-sholat') {
+            return redirect()->route('dashboard');
+        }
+
+        $username = session('user.username');
+        if (! $username) {
+            return redirect()->route('login.form');
+        }
+
+        $tanggal = $request->query('tanggal');
+        $today   = now()->format('Y-m-d');
+        if (! $tanggal) {
+            $tanggal = $today;
+        }
+
+        if ($tanggal === $today) {
+            $payload = [
+                'METHOD'   => 'LogPresensiTodayRequest',
+                'USERNAME' => $username,
+            ];
+        } else {
+            $payload = [
+                'METHOD'   => 'LogPresensiRequest',
+                'USERNAME' => $username,
+                'HARIOUT'  => $tanggal,
+            ];
+        }
+
+        $token   = $this->generateJwt($payload);
+        $entries = [];
+
+        try {
+            $response = Http::timeout(20)
+                ->get(self::API_BASE_URL_PRESENSI_SHOLAT . '?token=' . urlencode($token));
+
+            if ($response->ok()) {
+                $data = $response->json();
+                if (is_array($data)) {
+                    $entries = $data['datas'] ?? $data;
+                    if (! is_array($entries)) {
+                        $entries = [];
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::error('LogPresensi pdf export error', ['message' => $e->getMessage()]);
+        }
+
+        if (empty($entries)) {
+            return redirect()
+                ->route('presensi.log-presensi', ['tanggal' => $tanggal])
+                ->with('error', 'Tidak ada data untuk diexport.');
+        }
+
+        $pdf = Pdf::loadView('log_presensi_pdf', [
+            'entries' => $entries,
+            'tanggal' => $tanggal,
+        ])->setPaper('a4', 'portrait');
+
+        $filename = 'log_presensi_' . str_replace([':', ' '], '_', $tanggal) . '.pdf';
+
+        return $pdf->download($filename);
+    }
+
+    /**
+     * Ratakan data rekap: bila API mengembalikan grup (datas/siswa), ambil tiap siswa.
+     * Jangan masukkan record parent — hanya siswa dengan data per-waktu.
+     */
+    private function flattenRekapDatas(array $entries): array
+    {
+        $flat = [];
+        foreach ($entries as $e) {
+            if (! is_array($e)) {
+                continue;
+            }
+            foreach (['datas', 'siswa', 'students'] as $key) {
+                if (isset($e[$key]) && is_array($e[$key]) && count($e[$key]) > 0) {
+                    foreach ($e[$key] as $s) {
+                        if (is_array($s) && $this->isRekapStudentRecord($s)) {
+                            $flat[] = $s;
+                        }
+                    }
+                    continue 2;
+                }
+            }
+            if (! isset($e['datas']) && $this->isRekapStudentRecord($e)) {
+                $flat[] = $e;
+            }
+        }
+        return $flat;
+    }
+
+    private function isRekapStudentRecord(array $e): bool
+    {
+        return isset($e['NamaCust']) || isset($e['NAMA']) || isset($e['NAMASISWA'])
+            || isset($e['NOCUST']) || isset($e['nocust']) || isset($e['NIS']) || isset($e['NOKARTU']);
+    }
+
     private function generateJwt(array $payload): string
     {
         $header = [
@@ -716,4 +1078,3 @@ class PresensiSholatController extends Controller
         return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
     }
 }
-

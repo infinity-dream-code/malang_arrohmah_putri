@@ -143,7 +143,25 @@
                     <span class="date-label">Bulan &amp; Tahun</span>
                     <span class="date-value" id="bulanDisplay">{{ $bulan ?: 'Pilih bulan' }}</span>
                 </div>
-                <input type="month" name="bulan" id="bulanPicker" value="{{ $bulan }}" class="input-month" title="Pilih bulan dan tahun">
+                <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+                    <input type="month" name="bulan" id="bulanPicker" value="{{ $bulan }}" class="input-month" title="Pilih bulan dan tahun">
+                    <a href="#"
+                       id="btnExportExcel"
+                       data-export-base="{{ route('presensi.rekap-sholat.export-excel') }}"
+                       class="btn-date"
+                       style="background:#0f766e;box-shadow:0 4px 14px rgba(15,118,110,0.35);"
+                       title="Export Excel untuk bulan terpilih">
+                        <i class="fas fa-file-excel"></i> Export Excel
+                    </a>
+                    <a href="#"
+                       id="btnExportPdf"
+                       data-export-base="{{ route('presensi.rekap-sholat.export-pdf') }}"
+                       class="btn-date"
+                       style="background:#1f2937;box-shadow:0 4px 14px rgba(15,23,42,0.35);"
+                       title="Export PDF untuk bulan terpilih">
+                        <i class="fas fa-file-pdf"></i> Export PDF
+                    </a>
+                </div>
             </div>
         </form>
 
@@ -214,6 +232,30 @@
         var loader = document.getElementById('pageLoader');
         if (loader) loader.classList.add('hidden');
     }
+    function updateExportLinks() {
+        var bulan = currentBulan || (document.getElementById('bulanPicker') || {}).value || '';
+        var btnExcel = document.getElementById('btnExportExcel');
+        var btnPdf   = document.getElementById('btnExportPdf');
+        if (!btnExcel || !btnPdf) return;
+        var baseExcel = btnExcel.getAttribute('data-export-base') || '';
+        var basePdf   = btnPdf.getAttribute('data-export-base') || '';
+        if (bulan && baseExcel && basePdf) {
+            btnExcel.href = baseExcel + '?bulan=' + encodeURIComponent(bulan);
+            btnPdf.href   = basePdf + '?bulan=' + encodeURIComponent(bulan);
+            btnExcel.style.pointerEvents = 'auto';
+            btnPdf.style.pointerEvents   = 'auto';
+            btnExcel.style.opacity = '1';
+            btnPdf.style.opacity   = '1';
+        } else {
+            btnExcel.href = '#';
+            btnPdf.href   = '#';
+            btnExcel.style.pointerEvents = 'none';
+            btnPdf.style.pointerEvents   = 'none';
+            btnExcel.style.opacity = '0.5';
+            btnPdf.style.opacity   = '0.5';
+        }
+    }
+
     function loadData(bulan, page, append, search) {
         page = page || 1;
         append = !!append;
@@ -243,6 +285,7 @@
                     document.getElementById('bulanDisplay').textContent = bulan;
                     document.getElementById('bulanPicker').value = bulan;
                 }
+                updateExportLinks();
                 history.replaceState(null, '', '?bulan=' + encodeURIComponent(bulan));
                 updateUnitOptions();
             })
@@ -304,6 +347,7 @@
             var list = document.getElementById('rekapList');
             if (list) list.innerHTML = '<div class="empty"><i class="fas fa-calendar-days"></i>Pilih bulan dan tahun di atas untuk melihat rekap sholat.</div>';
         }
+        updateExportLinks();
 
         var refreshBtn = document.querySelector('.btn-refresh');
         if (refreshBtn) {
