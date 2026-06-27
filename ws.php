@@ -328,22 +328,14 @@ function getSummaryTagihan(array $req, ?string $code01): void
 function getFilterTagihan(array $req, ?string $code01): void
 {
     $pdo = dbConnectPdo();
-    $params = [];
-    $filterSql = tagihanFilterSql([], $code01, $params);
 
     $sqlBta = "
-        SELECT DISTINCT b.BTA AS value
-        FROM scctbill b
-        INNER JOIN scctcust c ON c.CUSTID = b.CUSTID
-        WHERE b.FSTSBolehBayar = 1
-          AND b.BTA IS NOT NULL AND b.BTA != ''
-          $filterSql
-        ORDER BY b.BTA DESC
-        LIMIT 50
+        SELECT thn_aka AS value
+        FROM mst_thn_aka
+        WHERE thn_aka IS NOT NULL AND thn_aka != ''
+        ORDER BY urut DESC
     ";
-    $stmtBta = $pdo->prepare($sqlBta);
-    bindTagihanParams($stmtBta, $params);
-    $stmtBta->execute();
+    $stmtBta = $pdo->query($sqlBta);
     $bta = array_column($stmtBta->fetchAll(), "value");
 
     $paramsKelas = [];
