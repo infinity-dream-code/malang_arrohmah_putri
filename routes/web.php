@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\MonitoringKepsekController;
 use App\Http\Controllers\PerizinanController;
 use App\Http\Controllers\PresensiSholatController;
 use App\Http\Controllers\StudentController;
@@ -29,6 +30,18 @@ Route::middleware(['check.auth'])->group(function () {
     Route::get('/dashboard-presensi-sholat', function () {
         return view('dashboard_presensi_sholat');
     })->name('dashboard.presensi-sholat');
+
+    Route::get('/dashboard-monitoring-kepsek', function () {
+        return view('dashboard_monitoring_kepsek');
+    })->name('dashboard.monitoring-kepsek');
+
+    Route::get('/kepsek/tagihan', [MonitoringKepsekController::class, 'showTagihan'])->name('kepsek.tagihan');
+    Route::get('/kepsek/tagihan/data', [MonitoringKepsekController::class, 'tagihanData'])->name('kepsek.tagihan.data');
+    Route::get('/kepsek/tagihan/summary', [MonitoringKepsekController::class, 'tagihanSummary'])->name('kepsek.tagihan.summary');
+    Route::get('/kepsek/tagihan/filters', [MonitoringKepsekController::class, 'tagihanFilterOptions'])->name('kepsek.tagihan.filters');
+    Route::post('/kepsek/tagihan/detail', [MonitoringKepsekController::class, 'tagihanDetail'])->name('kepsek.tagihan.detail');
+    Route::get('/kepsek/tagihan/export-excel', [MonitoringKepsekController::class, 'exportTagihanExcel'])->name('kepsek.tagihan.export-excel');
+    Route::get('/kepsek/tagihan/export-pdf', [MonitoringKepsekController::class, 'exportTagihanPdf'])->name('kepsek.tagihan.export-pdf');
 
     Route::get('/presensi-sholat/qr', [PresensiSholatController::class, 'showQr'])->name('presensi-sholat.qr');
     Route::post('/presensi-sholat/post-sholat', [PresensiSholatController::class, 'postSholat'])->name('presensi-sholat.post-sholat');

@@ -10,6 +10,7 @@ class AuthController extends Controller
 {
     private const API_BASE_URL_PERIZINAN = 'http://vps1.smartpayment.co.id:8888/Data/Malang_Arrohmah_Putri_Perizinan/WebAPI.php';
     private const API_BASE_URL_PRESENSI_SHOLAT = 'http://vps1.smartpayment.co.id:8888/Data/Malang_Arrohmah_Putri_PresensiSholat/WebAPI.php';
+    private const API_BASE_URL_MONITORING_KEPSEK = 'http://103.23.103.43/ws_client/Malang_Arrohmah_Putri_Kepsek_Monitoring/index.php';
     private const JWT_SECRET = 'a7c2a8a9b3c4a5a6a7a8a9b0c1a2a3';
 
     public function showLogin()
@@ -35,12 +36,16 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        $apiBaseUrl = $this->apiBaseUrlFor($validated['app']);
-
         Log::info('Login attempt received', [
             'app' => $validated['app'],
             'username' => $validated['username'],
         ]);
+
+        if ($validated['app'] === 'monitoring-kepsek') {
+            return $this->loginMonitoringKepsek($request, $validated);
+        }
+
+        $apiBaseUrl = $this->apiBaseUrlFor($validated['app']);
 
         $payload = [
             'METHOD'   => 'LoginRequest',
@@ -171,18 +176,71 @@ class AuthController extends Controller
         return [];
     }
 
+    private function loginMonitoringKepsek(Request $request, array $validated)
+    {
+        try {
+            $response = Http::timeout(15)
+                ->acceptJson()
+                ->asJson()
+                ->post(self::API_BASE_URL_MONITORING_KEPSEK, [
+                    'method'   => 'login',
+                    'username' => $validated['username'],
+                    'password' => $validated['password'],
+                ]);
+
+            Log::info('Monitoring Kepsek login response', [
+                'status' => $response->status(),
+                'body'   => $response->body(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Monitoring Kepsek login error', [
+                'message' => $e->getMessage(),
+            ]);
+
+            return back()
+                ->withInput($request->except('password'))
+                ->with('login_error', 'Tidak dapat terhubung ke server. Silakan coba lagi.');
+        }
+
+        $data = $response->json();
+
+        if (($data['status'] ?? 0) === 200 && ! empty($data['data']['token'])) {
+            $request->session()->put('user', [
+                'username' => $validated['username'],
+                'nama'     => $data['data']['nama'] ?? $validated['username'],
+                'app'      => 'monitoring-kepsek',
+                'token'    => $data['data']['token'],
+                'code01'   => $data['data']['code01'] ?? null,
+            ]);
+
+            return redirect()
+                ->route('dashboard.monitoring-kepsek')
+                ->with('login_success', 'Login berhasil.');
+        }
+
+        $message = $data['message'] ?? 'Login gagal. Akses Ditolak.';
+
+        return back()
+            ->withInput($request->except('password'))
+            ->with('login_error', $message);
+    }
+
     private function apiBaseUrlFor(?string $app): string
     {
-        return $app === 'presensi-sholat'
-            ? self::API_BASE_URL_PRESENSI_SHOLAT
-            : self::API_BASE_URL_PERIZINAN;
+        return match ($app) {
+            'presensi-sholat'   => self::API_BASE_URL_PRESENSI_SHOLAT,
+            'monitoring-kepsek' => self::API_BASE_URL_MONITORING_KEPSEK,
+            default             => self::API_BASE_URL_PERIZINAN,
+        };
     }
 
     private function dashboardRouteName(?string $app): string
     {
-        return $app === 'presensi-sholat'
-            ? 'dashboard.presensi-sholat'
-            : 'dashboard';
+        return match ($app) {
+            'presensi-sholat'   => 'dashboard.presensi-sholat',
+            'monitoring-kepsek' => 'dashboard.monitoring-kepsek',
+            default             => 'dashboard',
+        };
     }
 
     public function showGantiPassword()
