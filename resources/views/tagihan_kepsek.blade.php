@@ -680,6 +680,8 @@
                 loadGrandTotal();
             } else if (cachedSummary) {
                 applyGrandTotal(cachedSummary.total_jumlah, cachedSummary.total_rows);
+            } else {
+                loadGrandTotal();
             }
         } catch (e) {
             loader.style.display = 'none';

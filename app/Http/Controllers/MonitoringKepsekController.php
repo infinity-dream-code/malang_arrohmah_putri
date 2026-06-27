@@ -246,16 +246,68 @@ class MonitoringKepsekController extends Controller
     private function fetchGrandTotal(Request $request): array
     {
         $params = $this->buildFilterParams($request);
-        $cacheKey = 'kepsek_grand_total_' . md5(json_encode($params) . (string) session('user.token'));
+        $searchTerm = trim((string) $request->query('search', ''));
+        $cacheKey = 'kepsek_grand_total_' . md5(
+            json_encode($params) . '|' . $searchTerm . '|' . (string) session('user.token') . '|' . (string) session('user.code01')
+        );
 
-        return Cache::remember($cacheKey, 300, function () use ($params) {
-            $result = $this->callWs('getSummaryTagihan', $params, 15);
+        return Cache::remember($cacheKey, 300, function () use ($params, $searchTerm) {
+            $result = $this->callWs('getSummaryTagihan', $params, 45);
+            $parsed = $this->parseSummaryResult($result);
+            if ($parsed !== null) {
+                return $parsed;
+            }
 
-            return $this->parseSummaryResult($result);
+            Log::warning('Monitoring Kepsek summary fallback', [
+                'status'  => $result['status'] ?? null,
+                'message' => $result['message'] ?? null,
+                'code01'  => session('user.code01'),
+            ]);
+
+            if ($searchTerm !== '') {
+                $rows = $this->fetchMatchingTagihanRows($params, $searchTerm);
+                $totalJumlah = 0;
+                foreach ($rows as $row) {
+                    $totalJumlah += (float) ($row['jumlah'] ?? 0);
+                }
+
+                return [
+                    'total_rows'   => count($rows),
+                    'total_jumlah' => $totalJumlah,
+                ];
+            }
+
+            return $this->fetchGrandTotalFallback($params);
         });
     }
 
-    private function parseSummaryResult(?array $result): array
+    private function fetchGrandTotalFallback(array $params): array
+    {
+        $totalJumlah = 0;
+        $totalRows = 0;
+        $offset = 0;
+        $limit = 500;
+
+        do {
+            $batch = $this->callWs('getDataTagihan', array_merge($params, [
+                'limit'  => $limit,
+                'offset' => $offset,
+            ]), 25);
+            $rows = ($batch['status'] ?? 0) === 200 ? ($batch['data'] ?? []) : [];
+            foreach ($rows as $row) {
+                $totalJumlah += (float) ($row['jumlah'] ?? 0);
+                $totalRows++;
+            }
+            $offset += $limit;
+        } while (count($rows) === $limit);
+
+        return [
+            'total_rows'   => $totalRows,
+            'total_jumlah' => $totalJumlah,
+        ];
+    }
+
+    private function parseSummaryResult(?array $result): ?array
     {
         if (($result['status'] ?? 0) === 200 && isset($result['data'])) {
             return [
@@ -264,17 +316,7 @@ class MonitoringKepsekController extends Controller
             ];
         }
 
-        if ($result !== null) {
-            Log::warning('Monitoring Kepsek summary unavailable', [
-                'status'  => $result['status'] ?? null,
-                'message' => $result['message'] ?? null,
-            ]);
-        }
-
-        return [
-            'total_rows'   => 0,
-            'total_jumlah' => 0,
-        ];
+        return null;
     }
 
     /**
@@ -541,6 +583,16 @@ class MonitoringKepsekController extends Controller
         ];
     }
 
+    private function withSessionContext(array $params): array
+    {
+        $code01 = session('user.code01');
+        if ($code01 !== null && $code01 !== '' && ! isset($params['code01'])) {
+            $params['code01'] = (string) $code01;
+        }
+
+        return $params;
+    }
+
     private function callWs(string $method, array $params = [], int $timeout = 20): array
     {
         $token = session('user.token');
@@ -548,7 +600,7 @@ class MonitoringKepsekController extends Controller
             return ['status' => 401, 'message' => 'Session tidak valid. Silakan login kembali.'];
         }
 
-        $body = array_merge(['method' => $method, 'token' => $token], $params);
+        $body = array_merge(['method' => $method, 'token' => $token], $this->withSessionContext($params));
 
         try {
             $response = Http::connectTimeout(5)
