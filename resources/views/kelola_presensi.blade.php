@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
-            --bg:#f0f0ec;
+            --bg:#fff7ff;
             --surface:#fff;
             --surface2:#f5f5f1;
             --border:#e5e3de;
@@ -39,7 +39,7 @@
             --rad:12px;
             --rads:8px;
             --radl:18px;
-            --sw:252px;
+            --sw:272px;
         }
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
         html,body{height:100%}
@@ -50,51 +50,54 @@
 
         /* ── SIDEBAR ── */
         .sidebar{
-            width:var(--sw);background:#0f0f0d;
+            width:var(--sw);
+            background:linear-gradient(180deg,#0f172a 0%,#020617 100%);
             position:fixed;top:0;left:0;bottom:0;
             display:flex;flex-direction:column;
             z-index:40;overflow-y:auto;overflow-x:hidden;
             transition:transform .28s cubic-bezier(.4,0,.2,1);
+            border-right:1px solid rgba(255,255,255,.06);
+            box-shadow:4px 0 24px rgba(0,0,0,.2);
+            color:#f9fafb;
         }
         .sb-brand{
-            padding:22px 18px 16px;
-            display:flex;align-items:center;gap:11px;
-            border-bottom:1px solid rgba(255,255,255,.06);
+            padding:24px 20px 16px;
+            display:flex;align-items:center;gap:10px;
+            border-bottom:none;
         }
         .sb-logo{
-            width:36px;height:36px;border-radius:9px;
-            background:rgba(255,255,255,.07);
+            width:50px;height:50px;border-radius:999px;
+            background:transparent;
             display:flex;align-items:center;justify-content:center;
             overflow:hidden;flex-shrink:0;
         }
         .sb-logo img{width:100%;height:100%;object-fit:contain}
-        .sb-name{font-size:.88rem;font-weight:700;color:#f0ede6}
-        .sb-role{font-size:.62rem;color:rgba(240,237,230,.3);text-transform:uppercase;letter-spacing:.1em;margin-top:1px}
-        .sb-section{padding:18px 10px 6px}
-        .sb-lbl{font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:rgba(240,237,230,.22);padding:0 8px;margin-bottom:6px}
+        .sb-name{font-size:.95rem;font-weight:600;color:#f9fafb}
+        .sb-role{font-size:.78rem;color:rgba(249,250,251,.75);text-transform:none;letter-spacing:0;margin-top:1px}
+        .sb-section{padding:0 20px 6px;flex:1}
+        .sb-lbl{font-size:.7rem;font-weight:400;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;padding:0 14px;margin-bottom:10px}
         .sb-nav{list-style:none}
-        .sb-nav li{margin-bottom:1px}
+        .sb-nav li{margin-bottom:12px}
         .sb-link{
-            display:flex;align-items:center;gap:9px;
-            padding:8px 8px;border-radius:8px;
-            color:rgba(240,237,230,.5);
-            text-decoration:none;font-size:.84rem;font-weight:500;
-            transition:all .15s;cursor:pointer;border:none;
+            display:flex;align-items:center;gap:0;
+            padding:12px 14px;border-radius:999px;
+            color:inherit;
+            text-decoration:none;font-size:.9rem;font-weight:400;
+            transition:background .15s;cursor:pointer;border:none;
             background:transparent;width:100%;text-align:left;font-family:inherit;
         }
         .sb-ico{
-            width:26px;height:26px;border-radius:6px;
-            background:rgba(255,255,255,.05);
+            width:26px;height:26px;border-radius:0;
+            background:transparent;
             display:flex;align-items:center;justify-content:center;
-            font-size:.75rem;flex-shrink:0;
-            color:rgba(240,237,230,.35);transition:all .15s;
+            font-size:1.05rem;flex-shrink:0;margin-right:12px;
+            color:#e2e8f0 !important;transition:color .15s;
         }
-        .sb-link:hover{color:#f0ede6;background:rgba(255,255,255,.06)}
-        .sb-link:hover .sb-ico{background:rgba(255,255,255,.1);color:rgba(240,237,230,.7)}
-        .sb-link.active{color:#f0ede6;background:rgba(26,107,58,.25)}
-        .sb-link.active .sb-ico{background:var(--accent);color:#fff}
-        .sb-foot{margin-top:auto;padding:12px 18px;border-top:1px solid rgba(255,255,255,.05);font-size:.62rem;color:rgba(240,237,230,.18);font-family:'JetBrains Mono',monospace}
-        .sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:39;backdrop-filter:blur(3px);opacity:0;transition:opacity .28s}
+        .sb-link:hover{background:rgba(148,163,184,.18)}
+        .sb-link.active{background:rgba(148,163,184,.15)}
+        .sb-link.active .sb-ico{color:#e2e8f0 !important}
+        .sb-foot{margin-top:auto;padding:12px 20px;border-top:none;font-size:.78rem;color:rgba(249,250,251,.7);font-family:inherit;opacity:.7}
+        .sb-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:39;opacity:0;transition:opacity .2s}
 
         /* ── MAIN ── */
         .main{flex:1;margin-left:var(--sw);display:flex;flex-direction:column;min-height:100vh}
