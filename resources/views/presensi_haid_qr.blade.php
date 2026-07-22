@@ -372,12 +372,33 @@
             try { json = await res.json(); } catch(e) {}
 
             if (res.ok && json.ok) {
-                await Swal.fire({ icon: 'success', title: 'Berhasil', text: json.message || 'Presensi haid berhasil.', confirmButtonColor: '#a855f7' });
+                await Swal.fire({
+                    icon: 'success',
+                    title: 'Berhasil',
+                    text: json.message || 'Presensi haid berhasil.',
+                    confirmButtonColor: '#a855f7',
+                    timer: 2000,
+                    showConfirmButton: false,
+                });
             } else {
-                await Swal.fire({ icon: 'error', title: 'Gagal', text: (json && json.message) ? json.message : 'Presensi gagal (HTTP ' + res.status + ').', confirmButtonColor: '#a855f7' });
+                await Swal.fire({
+                    icon: 'error',
+                    title: 'Gagal',
+                    text: (json && json.message) ? json.message : 'Presensi gagal (HTTP ' + res.status + ').',
+                    confirmButtonColor: '#a855f7',
+                    timer: 2000,
+                    showConfirmButton: false,
+                });
             }
         } catch(e) {
-            await Swal.fire({ icon: 'error', title: 'Error', text: 'Gagal mengirim data. Coba lagi.', confirmButtonColor: '#a855f7' });
+            await Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Gagal mengirim data. Coba lagi.',
+                confirmButtonColor: '#a855f7',
+                timer: 2000,
+                showConfirmButton: false,
+            });
         } finally {
             isPosting = false;
             setStatus('Ready', true);
